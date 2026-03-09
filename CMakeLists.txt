@@ -7,6 +7,7 @@ set(OPENCV_DIR "OPENCV_DIR-NOTFOUND" CACHE PATH "Path to the OPENCV installation
 set(OPENSPLAT_MAX_CUDA_COMPATIBILITY OFF CACHE BOOL "Build for maximum CUDA device compatibility")
 set(OPENSPLAT_BUILD_VISUALIZER OFF CACHE BOOL "Build visualizer application")
 set(OPENSPLAT_USE_FAST_MATH OFF CACHE BOOL "Enable fast math optimizations for GPU kernels (-use_fast_math / -ffast-math)")
+set(OPENSPLAT_BUILD_ROSBAG OFF CACHE BOOL "Build with ROS2 bag support (requires ROS2 Jazzy)")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
@@ -184,6 +185,30 @@ if (OPENSPLAT_BUILD_VISUALIZER)
     find_package(Pangolin REQUIRED)
 endif()
 
+# ── Optional ROS2 Jazzy / rosbag2 support ─────────────────────────────────────
+set(ROSBAG2_LIBRARIES "")
+set(ROSBAG2_INCLUDE_DIRS "")
+if(OPENSPLAT_BUILD_ROSBAG)
+    find_package(rosbag2_cpp    REQUIRED)
+    find_package(sensor_msgs    REQUIRED)
+    find_package(geometry_msgs  REQUIRED)
+    find_package(rclcpp         REQUIRED)
+    message(STATUS "Building with ROS2 bag support (rosbag2_cpp found)")
+    add_compile_definitions(HAVE_ROSBAG2)
+    list(APPEND ROSBAG2_LIBRARIES
+        ${rosbag2_cpp_LIBRARIES}
+        ${sensor_msgs_LIBRARIES}
+        ${geometry_msgs_LIBRARIES}
+        ${rclcpp_LIBRARIES}
+    )
+    list(APPEND ROSBAG2_INCLUDE_DIRS
+        ${rosbag2_cpp_INCLUDE_DIRS}
+        ${sensor_msgs_INCLUDE_DIRS}
+        ${geometry_msgs_INCLUDE_DIRS}
+        ${rclcpp_INCLUDE_DIRS}
+    )
+endif()
+
 if (NOT WIN32 AND NOT APPLE)
     set(CMAKE_CUDA_COMPILER "${CUDA_TOOLKIT_ROOT_DIR}/bin/nvcc")
 endif()
@@ -241,6 +266,10 @@ kdtree_tensor.cpp spherical_harmonics.cpp cv_utils.cpp utils.cpp project_gaussia
 rasterize_gaussians.cpp ssim.cpp optim_scheduler.cpp colmap.cpp opensfm.cpp openmvg.cpp input_data.cpp
 tensor_math.cpp)
 
+if(OPENSPLAT_BUILD_ROSBAG)
+    list(APPEND OPENSPLAT_SRC_FILES rosbag.cpp)
+endif()
+
 if (OPENSPLAT_BUILD_VISUALIZER)
     if (Pangolin_FOUND)
         message(STATUS "Found Pangolin. Building visualizer (beta)")
@@ -258,8 +287,9 @@ set_property(TARGET opensplat PROPERTY CXX_STANDARD 17)
 target_include_directories(opensplat PRIVATE
     ${PROJECT_SOURCE_DIR}/rasterizer
     ${GPU_INCLUDE_DIRS}
+    ${ROSBAG2_INCLUDE_DIRS}
 )
-target_link_libraries(opensplat PUBLIC ${STDPPFS_LIBRARY} ${GPU_LIBRARIES} ${GSPLAT_LIBS} ${TORCH_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(opensplat PUBLIC ${STDPPFS_LIBRARY} ${GPU_LIBRARIES} ${GSPLAT_LIBS} ${TORCH_LIBRARIES} ${OpenCV_LIBS} ${ROSBAG2_LIBRARIES})
 if (Pangolin_FOUND)
     target_link_libraries(opensplat PUBLIC ${Pangolin_LIBRARIES})
 endif()
