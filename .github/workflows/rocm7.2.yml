@@ -1,0 +1,69 @@
+name: OpenSplat (Docker ROCm 7.2 + ROS2 Jazzy)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [ assigned, opened, synchronize, reopened ]
+  release:
+    types: [ published, edited ]
+
+jobs:
+  build:
+    name: ${{ matrix.os }}-rocm-${{ matrix.rocm-version }}-torch-${{ matrix.torch-version }}-${{ matrix.cmake-build-type }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04]
+        torch-version: [2.10.0]
+        rocm-version: [7.2]
+        cmake-build-type: [Release]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Free disk space
+        run: |
+          df -hT
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/lib/android/sdk
+          sudo rm -rf /opt/hostedtoolcache/Python
+          sudo rm -rf /opt/hostedtoolcache/go
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /var/lib/gems
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo apt-get autoremove -y
+          sudo apt-get autoclean -y
+          docker images -qf "dangling=true" | xargs -r sudo docker rmi
+          docker system prune -a -f
+          echo "Disk usage after cleanup:"
+          df -hT
+          sudo service docker stop
+          sudo mv /var/lib/docker /mnt/docker-data
+          sudo ln -s /mnt/docker-data /var/lib/docker
+          sudo service docker start
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.rocm7.2
+          build-args: |
+            ROCM_VERSION=${{ matrix.rocm-version }}
+            TORCH_VERSION=${{ matrix.torch-version }}
+            CMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }}
+          push: false
+          tags: opensplat:rocm7.2-ros2-jazzy

@@ -12,8 +12,26 @@ namespace cm{ InputData inputDataFromColmap(const std::string &projectRoot, cons
 namespace osfm { InputData inputDataFromOpenSfM(const std::string &projectRoot); }
 namespace omvg { InputData inputDataFromOpenMVG(const std::string &projectRoot); }
 
+#ifdef HAVE_ROSBAG2
+#include "rosbag.hpp"
+
+// Returns true if the path looks like a ROS2 bag (directory with metadata.yaml
+// or a standalone .db3 / .mcap file).
+static bool isRosBag(const fs::path &p) {
+    if (fs::is_directory(p) && fs::exists(p / "metadata.yaml")) return true;
+    const std::string ext = p.extension().string();
+    return (ext == ".db3" || ext == ".mcap");
+}
+#endif
+
 InputData inputDataFromX(const std::string &projectRoot, const std::string& colmapImageSourcePath){
     fs::path root(projectRoot);
+
+#ifdef HAVE_ROSBAG2
+    if (isRosBag(root)){
+        return rb::inputDataFromRosBag(projectRoot);
+    }
+#endif
 
     if (fs::exists(root / "transforms.json")){
         return ns::inputDataFromNerfStudio(projectRoot);
@@ -27,7 +45,11 @@ InputData inputDataFromX(const std::string &projectRoot, const std::string& colm
         return omvg::inputDataFromOpenMVG((root).string());
     }
     else{
-        throw std::runtime_error("Invalid project folder (must be either a colmap or nerfstudio or openmvg project folder)");
+        throw std::runtime_error("Invalid project folder (must be a colmap, nerfstudio, openmvg"
+#ifdef HAVE_ROSBAG2
+                                 ", or ROS2 bag"
+#endif
+                                 " project folder)");
     }
 }
 

@@ -1,0 +1,107 @@
+# Multi-stage Dockerfile for OpenSplat
+# ROCm 7.2 · PyTorch 2.10.0 · Python 3.13 · Ubuntu 24.04 · ROS2 Jazzy
+#
+# Usage (build):
+#   docker build -f Dockerfile.rocm7.2 -t opensplat:rocm7.2 .
+#
+# Usage (run):
+#   docker run --device /dev/kfd --device /dev/dri \
+#              --group-add video --ipc host --network host \
+#              -v /path/to/data:/data \
+#              opensplat:rocm7.2 -i /data/scene -o /data/splat.ply
+
+ARG ROCM_VERSION=7.2
+ARG TORCH_VERSION=2.10.0
+ARG PYTHON_VERSION=3.13
+
+# ── Build Stage ───────────────────────────────────────────────────────────────
+FROM rocm/pytorch:rocm${ROCM_VERSION}_ubuntu24.04_py${PYTHON_VERSION}_pytorch_release_${TORCH_VERSION} AS builder
+
+ARG CMAKE_BUILD_TYPE=Release
+
+SHELL ["/bin/bash", "-c"]
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Add ROS2 Jazzy package repository
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        gnupg \
+        lsb-release && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+         -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+         http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
+         | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libopencv-dev \
+        ros-jazzy-ros-base \
+        ros-jazzy-rosbag2-cpp \
+        ros-jazzy-rosbag2-storage-default-plugins \
+        ros-jazzy-sensor-msgs \
+        ros-jazzy-geometry-msgs \
+        ros-jazzy-cv-bridge && \
+    apt-get autoremove -y --purge && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /code
+
+# Copy source
+COPY . ./
+
+# Build OpenSplat with HIP (ROCm) and ROS2 bag support
+RUN source activate py_3.13 && \
+    source /opt/ros/jazzy/setup.bash && \
+    mkdir build && \
+    cd build && \
+    cmake .. \
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+      -DGPU_RUNTIME=HIP \
+      -DHIP_ROOT_DIR=/opt/rocm \
+      -DOPENSPLAT_BUILD_SIMPLE_TRAINER=ON \
+      -DOPENSPLAT_BUILD_ROSBAG=ON \
+      -DCMAKE_PREFIX_PATH="/opt/venv/lib/python3.13/site-packages/torch;/opt/ros/jazzy" \
+      -DCMAKE_INSTALL_PREFIX=/code/install && \
+    make -j"$(nproc)" && \
+    make install
+
+# ── Runtime Stage ─────────────────────────────────────────────────────────────
+FROM rocm/pytorch:rocm${ROCM_VERSION}_ubuntu24.04_py${PYTHON_VERSION}_pytorch_release_${TORCH_VERSION} AS runtime
+
+SHELL ["/bin/bash", "-c"]
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Add ROS2 Jazzy package repository (runtime packages only)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        gnupg \
+        lsb-release && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+         -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+         http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
+         | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libopencv-dev \
+        ros-jazzy-ros-base \
+        ros-jazzy-rosbag2-cpp \
+        ros-jazzy-rosbag2-storage-default-plugins \
+        ros-jazzy-sensor-msgs \
+        ros-jazzy-geometry-msgs && \
+    apt-get autoremove -y --purge && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy built binaries from the builder stage
+COPY --from=builder /code/install /usr/local
+
+ENV PATH="/usr/local/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
+
+WORKDIR /data
+
+ENTRYPOINT ["opensplat"]
