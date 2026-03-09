@@ -6,6 +6,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/core.hpp>
 #include <torch/torch.h>
 
 enum CameraType { Perspective };
@@ -41,6 +42,11 @@ struct Camera{
     void loadImage(float downscaleFactor);
     torch::Tensor K;
     torch::Tensor image;
+
+    // When set, loadImage() uses this in-memory buffer instead of reading from
+    // filePath.  The rosbag adapter populates this to avoid disk I/O.
+    // The buffer is cleared (freed) once loadImage() has consumed it.
+    cv::Mat preloadedImage;
 
     std::unordered_map<int, torch::Tensor> imagePyramids;
 };

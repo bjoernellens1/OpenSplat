@@ -17,12 +17,10 @@
 #include <torch/torch.h>
 
 #include <algorithm>
-#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -360,24 +358,14 @@ InputData inputDataFromRosBag(const std::string &bagPath,
     int   w  = static_cast<int>(cam_info.width);
     int   h  = static_cast<int>(cam_info.height);
 
-    // ── Write frames to a temporary directory ─────────────────────────────
-    // Camera::loadImage() reads images from filePath, so frames must exist on
-    // disk until all Camera::loadImage() calls have completed (at the end of
-    // training setup).  The caller is responsible for removing this directory
-    // afterwards if persistent storage is undesirable.
-    // PID + timestamp combination keeps names unique across parallel processes.
-    fs::path tmp_dir = fs::temp_directory_path() /
-                       ("opensplat_rosbag_" +
-                        std::to_string(static_cast<long>(getpid())) + "_" +
-                        std::to_string(
-                            std::chrono::duration_cast<std::chrono::milliseconds>(
-                                std::chrono::steady_clock::now().time_since_epoch())
-                                .count()));
-    fs::create_directories(tmp_dir);
-    std::cout << "[rosbag] Writing " << raw_frames.size()
-              << " frames to " << tmp_dir << std::endl;
+    std::cout << "[rosbag] Streaming " << raw_frames.size()
+              << " frames directly into memory (no disk I/O)." << std::endl;
 
     // ── Build InputData ───────────────────────────────────────────────────
+    // Images are stored in Camera::preloadedImage so that Camera::loadImage()
+    // can process them (scale, undistort, convert to tensor) without any
+    // filesystem round-trip.  filePath is set to a logical identifier of the
+    // form "bag_frame_<N>" (not a real path on disk).
     InputData result;
     result.scale       = 1.0f;
     result.translation = torch::zeros({3}, torch::kFloat32);
@@ -385,16 +373,7 @@ InputData inputDataFromRosBag(const std::string &bagPath,
     result.points.rgb  = torch::zeros({0, 3}, torch::kFloat32);
 
     for (size_t i = 0; i < raw_frames.size(); i++) {
-        const auto &frame = raw_frames[i];
-
-        // Write RGB frame as BGR PNG
-        std::string fname = "frame_" + std::to_string(i) + ".png";
-        fs::path    fpath = tmp_dir / fname;
-        cv::Mat bgr;
-        cv::cvtColor(frame.image, bgr, cv::COLOR_RGB2BGR);
-        if (!cv::imwrite(fpath.string(), bgr))
-            throw std::runtime_error("Failed to write temp frame: " +
-                                     fpath.string());
+        auto &frame = raw_frames[i];
 
         // Resolve camera-to-world pose
         torch::Tensor cam_to_world = torch::eye(4, torch::kFloat32);
@@ -404,9 +383,13 @@ InputData inputDataFromRosBag(const std::string &bagPath,
                                         p->qx, p->qy, p->qz, p->qw);
         }
 
-        result.cameras.emplace_back(
-            Camera(w, h, fx, fy, cx, cy, k1, k2, k3, p1, p2,
-                   cam_to_world, fpath.string()));
+        // Build Camera with a logical name – the image lives in memory, not on disk.
+        Camera cam(w, h, fx, fy, cx, cy, k1, k2, k3, p1, p2,
+                   cam_to_world,
+                   /*filePath=*/"bag_frame_" + std::to_string(i));
+        cam.id             = static_cast<int>(i);
+        cam.preloadedImage = std::move(frame.image); // zero-copy hand-off
+        result.cameras.push_back(std::move(cam));
     }
 
     return result;

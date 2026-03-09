@@ -63,10 +63,19 @@ void Camera::loadImage(float downscaleFactor){
     // Populates image and K, then updates the camera parameters
     // Caution: this function has destructive behaviors
     // and should be called only once
-    if (image.numel()) std::runtime_error("loadImage already called");
-    std::cout << "Loading " << filePath << std::endl;
+    if (image.numel()) throw std::runtime_error("loadImage already called");
 
-    cv::Mat cImg = imreadRGB(filePath);
+    cv::Mat cImg;
+    if (!preloadedImage.empty()) {
+        // In-memory path: image was pre-decoded by the rosbag adapter.
+        // Move out of the field (zero-copy) – cv::Mat move leaves it empty.
+        cImg = std::move(preloadedImage);
+        std::cout << "Loading frame " << id
+                  << " from memory (rosbag)" << std::endl;
+    } else {
+        std::cout << "Loading " << filePath << std::endl;
+        cImg = imreadRGB(filePath);
+    }
     
     float rescaleF = 1.0f;
     // If camera intrinsics don't match the image dimensions 
