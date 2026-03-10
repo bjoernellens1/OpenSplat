@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>opensplat_live_evaluation</name>
+  <version>0.1.0</version>
+  <description>
+    Dataset runners and runtime metrics for the OpenSplat live Gaussian mapper.
+    Supports TUM RGB-D, Replica and custom bag playback.
+    Computes ATE RMSE, RPE trans/rot via trajectory CSV compatible with evo.
+    Also logs per-keyframe timing, Gaussian counts, and residuals.
+  </description>
+  <maintainer email="opensplat@example.com">OpenSplat</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>opensplat_live_interfaces</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

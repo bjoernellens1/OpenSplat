@@ -1,0 +1,4 @@
+bool keep_intrinsics   # if true, camera model is retained after reset
+---
+bool success
+string message
