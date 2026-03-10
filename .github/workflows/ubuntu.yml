@@ -28,6 +28,8 @@ jobs:
             torch-version: 2.2.1
           - cuda-version: 12.4.1
             torch-version: 2.1.2
+          - cuda-version: 11.8.0
+            torch-version: 2.6.0
     env:
       CCACHE_DIR: ${{ github.workspace }}/ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
@@ -133,7 +135,7 @@ jobs:
           ninja
 
       - name: Save Artifacts
-        if: ${{ matrix.os == 'ubuntu-22.04' && matrix.cuda-version == '12.1.1' && matrix.torch-version == '2.2.1' && matrix.cmake-build-type == 'Release' }}
+        if: ${{ matrix.os == 'ubuntu-22.04' && matrix.cuda-version == '12.4.1' && matrix.torch-version == '2.6.0' && matrix.cmake-build-type == 'Release' }}
         uses: actions/upload-artifact@v4
         with:
           path: |
