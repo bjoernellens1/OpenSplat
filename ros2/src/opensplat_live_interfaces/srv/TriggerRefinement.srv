@@ -1,0 +1,5 @@
+uint32[] keyframe_ids  # empty = refine all recent keyframes
+uint32 max_steps       # 0 = use default
+---
+bool success
+string message

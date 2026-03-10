@@ -1,0 +1,12 @@
+# Live Gaussian map statistics published at each keyframe
+std_msgs/Header header
+uint32 total_gaussians
+uint32 stable_gaussians
+uint32 unstable_gaussians
+uint32 active_gaussians
+uint32 gaussians_spawned_last_kf
+uint32 gaussians_pruned_last_kf
+uint32 gaussians_merged_last_kf
+float32 mean_opacity
+float32 mean_color_residual
+float32 mean_depth_residual

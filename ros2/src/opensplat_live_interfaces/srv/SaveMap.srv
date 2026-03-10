@@ -1,0 +1,5 @@
+string output_path    # destination .ply path (empty = auto)
+---
+bool success
+string message
+string saved_path

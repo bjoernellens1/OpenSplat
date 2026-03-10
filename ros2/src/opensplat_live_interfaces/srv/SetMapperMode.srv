@@ -1,0 +1,6 @@
+# Modes: "online", "offline_refine", "frozen"
+string mode
+---
+bool success
+string message
+string previous_mode
