@@ -51,6 +51,10 @@ RUN apt-get update && \
 
 WORKDIR /code
 
+# ROCm 7.x moved LLVM from /opt/rocm/llvm to /opt/rocm/lib/llvm.
+# Create a compatibility symlink so the HIP wrapper scripts (hipcc) can find clang++.
+RUN ln -sf /opt/rocm/lib/llvm /opt/rocm/llvm
+
 # Copy source
 COPY . ./
 

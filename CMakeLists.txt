@@ -207,6 +207,24 @@ if(OPENSPLAT_BUILD_ROSBAG)
         ${geometry_msgs_INCLUDE_DIRS}
         ${rclcpp_INCLUDE_DIRS}
     )
+
+    # Detect which timestamp field rosbag2_storage::SerializedBagMessage exposes.
+    # Older Jazzy (0.26.x) uses time_stamp; newer versions may use recv_timestamp.
+    include(CheckCXXSourceCompiles)
+    cmake_push_check_state(RESET)
+    set(CMAKE_REQUIRED_INCLUDES ${ROSBAG2_INCLUDE_DIRS})
+    set(CMAKE_REQUIRED_FLAGS "-std=c++17")
+    check_cxx_source_compiles(
+        "#include <rosbag2_storage/serialized_bag_message.hpp>
+         int main() { rosbag2_storage::SerializedBagMessage m; (void)m.time_stamp; return 0; }"
+        ROSBAG2_BAG_MSG_HAS_TIME_STAMP)
+    cmake_pop_check_state()
+    if(ROSBAG2_BAG_MSG_HAS_TIME_STAMP)
+        add_compile_definitions(ROSBAG2_BAG_MSG_HAS_TIME_STAMP)
+        message(STATUS "rosbag2: SerializedBagMessage uses 'time_stamp' field")
+    else()
+        message(STATUS "rosbag2: SerializedBagMessage does not have 'time_stamp'; falling back to 'recv_timestamp'")
+    endif()
 endif()
 
 if (NOT WIN32 AND NOT APPLE)

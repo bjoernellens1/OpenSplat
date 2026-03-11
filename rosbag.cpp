@@ -277,7 +277,13 @@ InputData inputDataFromRosBag(const std::string &bagPath,
             // ── Image ──────────────────────────────────────────────────────
             if (msg->topic_name == img_topic) {
                 RawFrame f;
-                f.stamp_ns = static_cast<uint64_t>(msg->time_stamp);
+                f.stamp_ns = static_cast<uint64_t>(
+#ifdef ROSBAG2_BAG_MSG_HAS_TIME_STAMP
+                    msg->time_stamp
+#else
+                    msg->recv_timestamp
+#endif
+                );
 
                 if (!is_compressed) {
                     rclcpp::SerializedMessage sm(*msg->serialized_data);
@@ -316,7 +322,13 @@ InputData inputDataFromRosBag(const std::string &bagPath,
                     std::make_shared<geometry_msgs::msg::PoseStamped>();
                 pose_ser.deserialize_message(&sm, pose_msg.get());
                 StampedPose p;
-                p.stamp_ns = static_cast<uint64_t>(msg->time_stamp);
+                p.stamp_ns = static_cast<uint64_t>(
+#ifdef ROSBAG2_BAG_MSG_HAS_TIME_STAMP
+                    msg->time_stamp
+#else
+                    msg->recv_timestamp
+#endif
+                );
                 p.tx = static_cast<float>(pose_msg->pose.position.x);
                 p.ty = static_cast<float>(pose_msg->pose.position.y);
                 p.tz = static_cast<float>(pose_msg->pose.position.z);
