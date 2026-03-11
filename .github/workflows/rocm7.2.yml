@@ -65,6 +65,6 @@ jobs:
             ROCM_VERSION=${{ matrix.rocm-version }}
             TORCH_VERSION=${{ matrix.torch-version }}
             CMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }}
-            PYTORCH_ROCM_ARCH=gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102
+            PYTORCH_ROCM_ARCH=gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1151
           push: false
           tags: opensplat:rocm7.2-ros2-jazzy
