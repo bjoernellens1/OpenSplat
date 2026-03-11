@@ -211,6 +211,7 @@ if(OPENSPLAT_BUILD_ROSBAG)
     # Detect which timestamp field rosbag2_storage::SerializedBagMessage exposes.
     # Older Jazzy (0.26.x) uses time_stamp; newer versions may use recv_timestamp.
     include(CheckCXXSourceCompiles)
+    include(CMakePushCheckState)
     cmake_push_check_state(RESET)
     set(CMAKE_REQUIRED_INCLUDES ${ROSBAG2_INCLUDE_DIRS})
     set(CMAKE_REQUIRED_FLAGS "-std=c++17")
