@@ -1,0 +1,117 @@
+name: OpenSplat (Ubuntu 24.04 + ROS2 Jazzy)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [ assigned, opened, synchronize, reopened ]
+  release:
+    types: [ published, edited ]
+
+jobs:
+  build:
+    name: ${{ matrix.os }}-cpu-torch-${{ matrix.torch-version }}-ros2-jazzy-${{ matrix.cmake-build-type }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04]
+        torch-version: [2.6.0]
+        cmake-build-type: [Release]
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CMAKE_GENERATOR: Ninja
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            libopencv-dev \
+            curl \
+            gnupg \
+            lsb-release \
+            wget \
+            unzip
+          wget -nv https://github.com/ccache/ccache/releases/download/v4.9.1/ccache-4.9.1-linux-x86_64.tar.xz
+          sudo tar xf ccache-4.9.1-linux-x86_64.tar.xz -C /usr/bin --strip-components=1 --no-same-owner ccache-4.9.1-linux-x86_64/ccache
+          rm -f ccache-*-linux-x86_64.tar.xz
+          ccache --version
+
+      - name: Add ROS2 Jazzy repository
+        run: |
+          curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+               | sudo tee /usr/share/keyrings/ros-archive-keyring.gpg > /dev/null
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+               http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
+               | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+          sudo apt-get update
+
+      - name: Install ROS2 Jazzy packages
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            ros-jazzy-ros-base \
+            ros-jazzy-rosbag2-cpp \
+            ros-jazzy-rosbag2-storage-default-plugins \
+            ros-jazzy-sensor-msgs \
+            ros-jazzy-geometry-msgs \
+            ros-jazzy-cv-bridge
+
+      - name: Restore LibTorch Cache
+        uses: actions/cache@v4
+        id: libtorch-cache
+        with:
+          key: libtorch-${{ matrix.torch-version }}-cpu-ubuntu24
+          path: ${{ github.workspace }}/libtorch
+
+      - name: Install LibTorch (CPU)
+        if: ${{ steps.libtorch-cache.outputs.cache-hit != 'true' }}
+        run: |
+          wget --no-check-certificate -nv \
+            "https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-${{ matrix.torch-version }}%2Bcpu.zip" \
+            -O libtorch.zip
+          unzip -q libtorch.zip -d ${{ github.workspace }}/
+          rm libtorch.zip
+
+      - name: Cache Build
+        uses: actions/cache@v4
+        id: cache-builds
+        with:
+          key: ${{ matrix.os }}-cpu-torch-${{ matrix.torch-version }}-jazzy-${{ matrix.cmake-build-type }}-ccache-${{ github.run_id }}
+          restore-keys: ${{ matrix.os }}-cpu-torch-${{ matrix.torch-version }}-jazzy-${{ matrix.cmake-build-type }}-ccache-
+          path: ${{ env.CCACHE_DIR }}
+
+      - name: Configure and Build
+        run: |
+          set -x
+          source /opt/ros/jazzy/setup.bash
+          mkdir build
+          cd build
+          cmake .. \
+            -G"${CMAKE_GENERATOR}" \
+            -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=$(which ccache) \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=$(which ccache) \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/libtorch;/opt/ros/jazzy" \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install \
+            -DOPENSPLAT_BUILD_SIMPLE_TRAINER=ON \
+            -DOPENSPLAT_BUILD_ROSBAG=ON
+          ninja
+
+      - name: Clean Compiler Cache
+        run: |
+          set -x
+          ccache --show-stats
+          ccache --evict-older-than 7d
+          ccache --show-stats
