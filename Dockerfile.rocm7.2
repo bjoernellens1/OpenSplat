@@ -13,14 +13,17 @@
 ARG ROCM_VERSION=7.2
 ARG TORCH_VERSION=2.10.0
 ARG PYTHON_VERSION=3.13
+ARG PYTORCH_ROCM_ARCH=gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1151
 
 # ── Build Stage ───────────────────────────────────────────────────────────────
 FROM rocm/pytorch:rocm${ROCM_VERSION}_ubuntu24.04_py${PYTHON_VERSION}_pytorch_release_${TORCH_VERSION} AS builder
 
 ARG CMAKE_BUILD_TYPE=Release
+ARG PYTORCH_ROCM_ARCH
 
 SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTORCH_ROCM_ARCH=${PYTORCH_ROCM_ARCH}
 
 # Add ROS2 Jazzy package repository
 RUN apt-get update && \
@@ -47,6 +50,10 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /code
+
+# ROCm 7.x moved LLVM from /opt/rocm/llvm to /opt/rocm/lib/llvm.
+# Create a compatibility symlink so the HIP wrapper scripts (hipcc) can find clang++.
+RUN ln -sf /opt/rocm/lib/llvm /opt/rocm/llvm
 
 # Copy source
 COPY . ./

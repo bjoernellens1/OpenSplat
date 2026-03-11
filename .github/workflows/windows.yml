@@ -25,6 +25,11 @@ jobs:
         include:
           - os: windows-2022
             generator: 'Visual Studio 17 2022'
+        exclude:
+          - cuda-version: 12.4.0
+            torch-version: 2.2.1
+          - cuda-version: 12.4.0
+            torch-version: 2.1.2
     env:
       CCACHE_DIR: ${{ github.workspace }}\ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
@@ -108,7 +113,7 @@ jobs:
         if: ${{ steps.libtorch-cache.outputs.cache-hit != 'true' }}
         run: |
           if ("${{ matrix.cuda-version }}" -eq "12.4.0") {
-            $LIBTORCH_URL = "https://download.pytorch.org/libtorch/nightly/cu124/libtorch-win-shared-with-deps-latest.zip"
+            $LIBTORCH_URL = "https://download.pytorch.org/libtorch/cu124/libtorch-win-shared-with-deps-${{ matrix.torch-version }}%2Bcu124.zip"
           } else {
             $LIBTORCH_URL = "https://download.pytorch.org/libtorch/$env:CUDA_VER_SHORT/libtorch-win-shared-with-deps-${{ matrix.torch-version }}%2B$($env:CUDA_VER_SHORT).zip"
           }
@@ -141,7 +146,7 @@ jobs:
           cmake --build . --parallel --config ${{ matrix.cmake-build-type }}
 
       - name: Save Artifacts
-        if: ${{ matrix.os == 'windows-2022' && matrix.torch-version == '2.2.1' && matrix.cmake-build-type == 'Release' }}
+        if: ${{ matrix.os == 'windows-2022' && matrix.torch-version == '2.6.0' && matrix.cmake-build-type == 'Release' }}
         uses: actions/upload-artifact@v4
         with:
           path: |
